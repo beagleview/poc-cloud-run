@@ -31,7 +31,6 @@ func main() {
 	r := gin.Default()
 	r.GET("/auth-user", authUserHandler)
 
-	// url redirect with custom header
 	r.GET("/redirect", func(c *gin.Context) {
 		accessToken := c.GetHeader("tmn-access-token")
 		c.JSON(http.StatusOK, gin.H{
@@ -40,9 +39,25 @@ func main() {
 	})
 
 	r.GET("/test", func(c *gin.Context) {
-		c.Header("tmn-access-token", "123456789000fghgjkdhk")
-		c.SetCookie("myCookie", "myValue", 3600, "/", "", false, true)
-		c.Redirect(http.StatusMovedPermanently, "http://localhost:8080/redirect")
+		req, err := http.NewRequest("GET", "http://localhost:8080/redirect", nil)
+		if err != nil {
+			log.Fatal(err)
+			return
+		}
+
+		req.Header.Set("tmn-access-token", "123456789000fghgjkdhk")
+
+		client := &http.Client{}
+		resp, err := client.Do(req)
+		if err != nil {
+			log.Fatal(err)
+			return
+		}
+		defer resp.Body.Close()
+
+		body, _ := io.ReadAll(resp.Body)
+
+		c.Data(http.StatusOK, resp.Header.Get("Content-Type"), body)
 	})
 
 	r.GET("/", func(c *gin.Context) {
@@ -62,7 +77,7 @@ func authUserHandler(c *gin.Context) {
 		GrantType:    "authorization_code",
 		ClientId:     "xxx",
 		ClientSecret: "xxx",
-		RedirectUri:  "xxx",
+		RedirectUri:  "https://xxx",
 	}
 
 	form := url.Values{}
@@ -72,7 +87,7 @@ func authUserHandler(c *gin.Context) {
 	form.Add("client_secret", reqData.ClientSecret)
 	form.Add("redirect_uri", reqData.RedirectUri)
 
-	req, err := http.NewRequest("POST", "xxx", strings.NewReader(form.Encode()))
+	req, err := http.NewRequest("POST", "https://xxx", strings.NewReader(form.Encode()))
 	if err != nil {
 		log.Fatal(err)
 		return
