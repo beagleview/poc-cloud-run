@@ -1,21 +1,22 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
+	"net/url"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
 
 type RequestData struct {
-	Code         string `json:"code"`
-	GrantType    string `json:"grant_type"`
-	ClientId     string `json:"client_id"`
-	ClientSecret string `json:"client_secret"`
-	RedirectUri  string `json:"redirect_uri"`
+	Code         string `url:"code"`
+	GrantType    string `url:"grant_type"`
+	ClientId     string `url:"client_id"`
+	ClientSecret string `url:"client_secret"`
+	RedirectUri  string `url:"redirect_uri"`
 }
 
 type ResponseData struct {
@@ -32,10 +33,21 @@ func main() {
 
 	// url redirect with custom header
 	r.GET("/redirect", func(c *gin.Context) {
-		accessToken := c.Request.Header.Get("tnm-access-token")
-
+		accessToken := c.GetHeader("tmn-access-token")
 		c.JSON(http.StatusOK, gin.H{
 			"access_token": accessToken,
+		})
+	})
+
+	r.GET("/test", func(c *gin.Context) {
+		c.Header("tmn-access-token", "123456789000fghgjkdhk")
+		c.SetCookie("myCookie", "myValue", 3600, "/", "", false, true)
+		c.Redirect(http.StatusMovedPermanently, "http://localhost:8080/redirect")
+	})
+
+	r.GET("/", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"status": "ok",
 		})
 	})
 
@@ -43,23 +55,24 @@ func main() {
 }
 
 func authUserHandler(c *gin.Context) {
-	authCode := c.Request.Header.Get("TMN-Auth-Code")
+	authCode := c.GetHeader("TMN-Auth-Code")
 
 	reqData := RequestData{
 		Code:         authCode,
 		GrantType:    "authorization_code",
-		ClientId:     "client_id",
-		ClientSecret: "client_secret",
-		RedirectUri:  "http://localhost:8080/redirect",
+		ClientId:     "xxx",
+		ClientSecret: "xxx",
+		RedirectUri:  "xxx",
 	}
 
-	jsonData, err := json.Marshal(reqData)
-	if err != nil {
-		log.Fatal(err)
-		return
-	}
+	form := url.Values{}
+	form.Add("code", reqData.Code)
+	form.Add("grant_type", reqData.GrantType)
+	form.Add("client_id", reqData.ClientId)
+	form.Add("client_secret", reqData.ClientSecret)
+	form.Add("redirect_uri", reqData.RedirectUri)
 
-	req, err := http.NewRequest("POST", "https://apis.tmn-dev.com/oauth2/v1/token", bytes.NewBuffer(jsonData))
+	req, err := http.NewRequest("POST", "xxx", strings.NewReader(form.Encode()))
 	if err != nil {
 		log.Fatal(err)
 		return
@@ -75,7 +88,7 @@ func authUserHandler(c *gin.Context) {
 	}
 	defer resp.Body.Close()
 
-	body, _ := ioutil.ReadAll(resp.Body)
+	body, _ := io.ReadAll(resp.Body)
 
 	log.Println("response Body:", string(body))
 
@@ -85,5 +98,8 @@ func authUserHandler(c *gin.Context) {
 	c.Header("tmn-access-token", resData.AccessToken)
 	c.Header("tmn-expires-in", resData.ExpiresIn)
 
+	log.Println("access token:", resData.AccessToken)
+
+	//c.Redirect(http.StatusMovedPermanently, "https://lending-dashboard-qa.public-a-cloud1n.ascendnano.io/paylater/dashboard/")
 	c.Redirect(http.StatusMovedPermanently, "http://localhost:8080/redirect")
 }
